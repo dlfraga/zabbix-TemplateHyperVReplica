@@ -1,0 +1,243 @@
+zabbix_export:
+  version: '6.0'
+  date: '2023-05-25T13:36:42Z'
+  groups:
+    -
+      uuid: ff79f25f0c6a4fa0b7d7b9d2ab1925d3
+      name: HyperV
+  templates:
+    -
+      uuid: dc054338eb414cdd93327976b2c5143c
+      template: ReplicaHyperV-WMI
+      name: ReplicaHyperV-WMI
+      groups:
+        -
+          name: HyperV
+      discovery_rules:
+        -
+          uuid: 922ac577c7be4b0f93119744ecbfaccb
+          name: GetVMStatus
+          key: 'wmi.getall[Root\Virtualization\V2,Select * from Msvm_ComputerSystem where ReplicationMode IS NOT NULL]'
+          delay: 30s
+          lifetime: 2h
+          description: 'Obtem a lista de vms do servidor junto com diversas informações de configurações delas'
+          item_prototypes:
+            -
+              uuid: e67430f1c6f446378fd928d8826d7fe1
+              name: 'Status de operacao da VM {#ELEMENTNAME}'
+              key: 'wmi.get[Root\Virtualization\V2,SELECT EnabledState from Msvm_ComputerSystem where elementname LIKE ''{#ELEMENTNAME}'']'
+              delay: 30m
+              description: |
+                The enabled and disabled states of an element. This property can also indicate the transitions between these requested states. This property is inherited from the CIM_EnabledLogicalElement class, and it is set to 2 (Enabled) for a physical computer or one of the following values for a virtual machine. For a graphical view of these states, see Remarks.
+                
+                https://docs.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-computersystem
+              valuemap:
+                name: HyperVEnabledState
+              tags:
+                -
+                  tag: Application
+                  value: HyperV-VM-Health
+            -
+              uuid: 2deb2409442f46788773a2614be490c2
+              name: 'Status da VM {#ELEMENTNAME}'
+              key: 'wmi.get[Root\Virtualization\V2,SELECT HealthState from Msvm_ComputerSystem where elementname LIKE ''{#ELEMENTNAME}'']'
+              delay: 30m
+              description: 'Gets the vm health information'
+              valuemap:
+                name: HyperVHealthState
+              tags:
+                -
+                  tag: Application
+                  value: HyperV-VM-Health
+              trigger_prototypes:
+                -
+                  uuid: 4bc0700c18fb4d2780eb55954ba51af9
+                  expression: 'last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT HealthState from Msvm_ComputerSystem where elementname LIKE ''{#ELEMENTNAME}''])=25'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT HealthState from Msvm_ComputerSystem where elementname LIKE ''{#ELEMENTNAME}''])=5'
+                  name: 'Falha critica detectada na maquina virtual {#ELEMENTNAME}'
+                  priority: DISASTER
+                  description: 'The element is nonfunctional, and recovery might not be possible. This can indicate that the worker process for the virtual machine (Vmwp.exe) is not responding to control or information requests, or that one or more disks that contain the VHDs for the virtual machine are low on disk space.'
+                  manual_close: 'YES'
+                -
+                  uuid: 1972a62a4739436ebbe0913e3cf1966e
+                  expression: 'last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT HealthState from Msvm_ComputerSystem where elementname LIKE ''{#ELEMENTNAME}''])=20'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT HealthState from Msvm_ComputerSystem where elementname LIKE ''{#ELEMENTNAME}''])=5'
+                  name: 'Falha detectada na maquina virtual {#ELEMENTNAME}'
+                  priority: DISASTER
+                  description: 'The virtual machine has suffered a major failure. This value is used when one or more disks that contain the virtual machine''s VHDs is low on disk space and the virtual machine has been paused.'
+                  manual_close: 'YES'
+                -
+                  uuid: 818fc79f9eb84a61827b5a329bf4f0a7
+                  expression: 'nodata(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT HealthState from Msvm_ComputerSystem where elementname LIKE ''{#ELEMENTNAME}''],3d)=1'
+                  name: 'Impossivel checar status da VM {#ELEMENTNAME} a mais de 3 dias'
+                  priority: DISASTER
+                  description: 'Não recebemos informações da VM nos ultimos 3 dias. Verificar se o monitoramento está funcionando corretamente.'
+                  manual_close: 'YES'
+            -
+              uuid: c3c3c4573e55427581f0076b2ad92550
+              name: 'Status da Replicacao da VM ''{#ELEMENTNAME}'''
+              key: 'wmi.get[Root\Virtualization\V2,SELECT ReplicationHealth from Msvm_ComputerSystem where ElementName LIKE ''{#ELEMENTNAME}'' ]'
+              delay: 30m
+              description: 'Status da replicação da VM. Não considera os possiveis diferentes relacionamentos de replicação'
+              valuemap:
+                name: HyperVReplicationStatus
+              tags:
+                -
+                  tag: Application
+                  value: Replication
+              trigger_prototypes:
+                -
+                  uuid: 47d927f1da084fa7a92f7936069dfb2e
+                  expression: 'nodata(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationHealth from Msvm_ComputerSystem where ElementName LIKE ''{#ELEMENTNAME}'' ],3d)=1'
+                  name: 'Impossivel checar status da replicacao VM {#ELEMENTNAME} a mais de 3 dias'
+                  priority: DISASTER
+                  description: 'O sistema de monitoramento não conseguiu checar a réplica da VM nos ultimos 3 dias.'
+                  manual_close: 'YES'
+                -
+                  uuid: ff5c9cf4e10544428718c9d695f59187
+                  expression: 'last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationHealth from Msvm_ComputerSystem where ElementName LIKE ''{#ELEMENTNAME}'' ])=0'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationHealth from Msvm_ComputerSystem where ElementName LIKE ''{#ELEMENTNAME}'' ])=1'
+                  name: 'Replicacao inativa na vm {#ELEMENTNAME}'
+                  priority: DISASTER
+                  description: 'A replicacao nao esta ativa na VM. Verificar o problema ou desativar a trigger.'
+                  manual_close: 'YES'
+                -
+                  uuid: f4bd9932ab37472c87fd5761d4a0976d
+                  expression: 'last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationHealth from Msvm_ComputerSystem where ElementName LIKE ''{#ELEMENTNAME}'' ])=2 or last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationHealth from Msvm_ComputerSystem where ElementName LIKE ''{#ELEMENTNAME}'' ])=3'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationHealth from Msvm_ComputerSystem where ElementName LIKE ''{#ELEMENTNAME}'' ])=1'
+                  name: 'Replicação da vm {#ELEMENTNAME} com avisos'
+                  priority: WARNING
+                  description: 'Replica com aviso'
+                  manual_close: 'YES'
+            -
+              uuid: 7625c564e4234c159d59f3c7c26a4d4d
+              name: 'Modo de Replicacao da VM {#ELEMENTNAME}'
+              key: 'wmi.get[Root\Virtualization\V2,SELECT ReplicationMode from Msvm_ComputerSystem where elementname LIKE ''{#ELEMENTNAME}'']'
+              delay: 30m
+              valuemap:
+                name: HyperVReplicationMode
+              tags:
+                -
+                  tag: Application
+                  value: Replication
+          trigger_prototypes:
+            -
+              uuid: fe9d13bef9224ac5b518aca6edab8a7e
+              expression: |
+                last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT EnabledState from Msvm_ComputerSystem where elementname LIKE '{#ELEMENTNAME}'])=3 and 
+                (last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationMode from Msvm_ComputerSystem where elementname LIKE '{#ELEMENTNAME}'])=1
+                or
+                last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationMode from Msvm_ComputerSystem where elementname LIKE '{#ELEMENTNAME}'])=0
+                )
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: |
+                last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT EnabledState from Msvm_ComputerSystem where elementname LIKE '{#ELEMENTNAME}'])=2
+                 and
+                 
+                (last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationMode from Msvm_ComputerSystem where elementname LIKE '{#ELEMENTNAME}'])=1
+                or
+                last(/ReplicaHyperV-WMI/wmi.get[Root\Virtualization\V2,SELECT ReplicationMode from Msvm_ComputerSystem where elementname LIKE '{#ELEMENTNAME}'])=0)
+              name: 'Maquina virtual {#ELEMENTNAME} desligada'
+              priority: DISASTER
+              description: 'A VM está desligada. Caso isso seja esperado, desativar a trigger.'
+              manual_close: 'YES'
+          lld_macro_paths:
+            -
+              lld_macro: '{#ELEMENTNAME}'
+              path: $.ElementName
+            -
+              lld_macro: '{#HEALTHSTATE}'
+              path: $.HealthState
+            -
+              lld_macro: '{#LASTREPLICATIONTIME}'
+              path: $.LastReplicationTime
+            -
+              lld_macro: '{#OPERATIONALSTATUS}'
+              path: $.OperationalStatus
+            -
+              lld_macro: '{#REPLICATIONHEALTH}'
+              path: $.ReplicationHealth
+            -
+              lld_macro: '{#REPLICATIONSTATE}'
+              path: $.ReplicationState
+      valuemaps:
+        -
+          uuid: 3e1c8e093dee411ca8af185a1f06641c
+          name: HyperVEnabledState
+          mappings:
+            -
+              value: '0'
+              newvalue: Desconhecido
+            -
+              value: '1'
+              newvalue: Outro
+            -
+              value: '2'
+              newvalue: Rodando
+            -
+              value: '3'
+              newvalue: Desativado
+            -
+              value: '4'
+              newvalue: Desligando
+            -
+              value: '5'
+              newvalue: 'Nao aplicavel'
+            -
+              value: '6'
+              newvalue: 'Ativo porem fora do ar'
+            -
+              value: '7'
+              newvalue: 'Em teste'
+            -
+              value: '8'
+              newvalue: 'Indisponivel finalizando comandos'
+            -
+              value: '9'
+              newvalue: 'Ativo porém restrito'
+            -
+              value: '10'
+              newvalue: Iniciando
+        -
+          uuid: 04f69f6f6d6045baa7942d416f846ca2
+          name: HyperVHealthState
+          mappings:
+            -
+              value: '5'
+              newvalue: OK
+            -
+              value: '20'
+              newvalue: 'Failure (Disk full)'
+            -
+              value: '25'
+              newvalue: 'Critical Failure (Disk Full or HyperVisor not responding)'
+        -
+          uuid: 06f0e429adee4acaa0d79f4de87e87e6
+          name: HyperVReplicationMode
+          mappings:
+            -
+              value: '0'
+              newvalue: None
+            -
+              value: '1'
+              newvalue: Primary
+            -
+              value: '2'
+              newvalue: Replica
+        -
+          uuid: 85fa6563b1ea41c19d360317f2eb0803
+          name: HyperVReplicationStatus
+          mappings:
+            -
+              value: '1'
+              newvalue: Ok
+            -
+              value: '2'
+              newvalue: Warning
+            -
+              value: '3'
+              newvalue: Critical
