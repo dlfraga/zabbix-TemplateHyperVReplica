@@ -1,6 +1,6 @@
 # zabbix-TemplateHyperVReplica
 
-This is a template for Zabbix 6+ that enables monitoring of the replication status from Hyper-V hosts.
+This is a template for Zabbix 5+ that enables monitoring of the replication status from Hyper-V hosts.
 
 ## How it works
 This template utilizes the Zabbix agent's WMI.GETALL function, eliminating the need to directly add a user parameter to the hosts. The wmi.getall agent function is available on Zabbix agents v5.0+.
